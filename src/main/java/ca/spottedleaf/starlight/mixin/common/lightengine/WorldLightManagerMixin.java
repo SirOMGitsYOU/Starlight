@@ -8,19 +8,20 @@ import ca.spottedleaf.starlight.common.light.StarLightLightingProvider;
 import ca.spottedleaf.starlight.common.util.CoordinateUtils;
 import ca.spottedleaf.starlight.common.util.WorldUtil;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.SectionPos;
-import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.LightLayer;
-import net.minecraft.world.level.chunk.ChunkAccess;
-import net.minecraft.world.level.chunk.DataLayer;
-import net.minecraft.world.level.chunk.LevelChunk;
-import net.minecraft.world.level.chunk.LightChunkGetter;
-import net.minecraft.world.level.lighting.LayerLightEngine;
-import net.minecraft.world.level.lighting.LayerLightEventListener;
-import net.minecraft.world.level.lighting.LevelLightEngine;
-import net.minecraft.world.level.lighting.LightEventListener;
-import org.jetbrains.annotations.Nullable;
+import it.unimi.dsi.fastutil.shorts.ShortOpenHashSet;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.ChunkPos;
+import net.minecraft.util.math.SectionPos;
+import net.minecraft.world.LightType;
+import net.minecraft.world.chunk.Chunk;
+import net.minecraft.world.chunk.IChunk;
+import net.minecraft.world.chunk.IChunkLightProvider;
+import net.minecraft.world.chunk.NibbleArray;
+import net.minecraft.world.lighting.ILightListener;
+import net.minecraft.world.lighting.IWorldLightListener;
+import net.minecraft.world.lighting.LightEngine;
+import net.minecraft.world.lighting.WorldLightManager;
+import net.minecraft.world.server.ServerWorldLightManager;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
@@ -28,17 +29,18 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import javax.annotation.Nullable;
 
-@Mixin(LevelLightEngine.class)
-public abstract class LevelLightEngineMixin implements LightEventListener, StarLightLightingProvider {
-
-    @Shadow
-    @Nullable
-    private LayerLightEngine<?, ?> blockEngine;
+@Mixin(WorldLightManager.class)
+public abstract class WorldLightManagerMixin implements ILightListener, StarLightLightingProvider {
 
     @Shadow
     @Nullable
-    private LayerLightEngine<?, ?> skyEngine;
+    private LightEngine<?, ?> blockLight;
+
+    @Shadow
+    @Nullable
+    private LightEngine<?, ?> skyLight;
 
     @Unique
     protected StarLightInterface lightEngine;
@@ -55,12 +57,12 @@ public abstract class LevelLightEngineMixin implements LightEventListener, StarL
     @Inject(
             method = "<init>", at = @At("TAIL")
     )
-    public void construct(final LightChunkGetter chunkProvider, final boolean hasBlockLight, final boolean hasSkyLight,
+    public void construct(final IChunkLightProvider provider, final boolean hasBlockLight, final boolean hasSkyLight,
                           final CallbackInfo ci) {
-        this.lightEngine = new StarLightInterface(chunkProvider, hasSkyLight, hasBlockLight, (LevelLightEngine)(Object)this);
+        this.lightEngine = new StarLightInterface(provider, hasSkyLight, hasBlockLight);
         // intentionally destroy mods hooking into old light engine state
-        this.blockEngine = null;
-        this.skyEngine = null;
+        this.blockLight = null;
+        this.skyLight = null;
     }
 
     /**
@@ -69,7 +71,7 @@ public abstract class LevelLightEngineMixin implements LightEventListener, StarL
      */
     @Overwrite
     public void checkBlock(final BlockPos pos) {
-        this.lightEngine.blockChange(pos.immutable());
+        this.lightEngine.blockChange(pos.toImmutable());
     }
 
     /**
@@ -96,7 +98,7 @@ public abstract class LevelLightEngineMixin implements LightEventListener, StarL
      * @author Spottedleaf
      */
     @Overwrite
-    public int runUpdates(final int maxUpdateCount, final boolean doSkylight, final boolean skipEdgeLightPropagation) {
+    public int tick(final int maxUpdateCount, final boolean doSkylight, final boolean skipEdgeLightPropagation) {
         // replace impl
         final boolean hadUpdates = this.hasLightWork();
         this.lightEngine.propagateChanges();
@@ -126,8 +128,8 @@ public abstract class LevelLightEngineMixin implements LightEventListener, StarL
      * @author Spottedleaf
      */
     @Overwrite
-    public LayerLightEventListener getLayerListener(final LightLayer lightType) {
-        return lightType == LightLayer.BLOCK ? this.lightEngine.getBlockReader() : this.lightEngine.getSkyReader();
+    public IWorldLightListener getLightEngine(final LightType lightType) {
+        return lightType == LightType.BLOCK ? this.lightEngine.getBlockReader() : this.lightEngine.getSkyReader();
     }
 
     /**
@@ -135,8 +137,9 @@ public abstract class LevelLightEngineMixin implements LightEventListener, StarL
      * @author Spottedleaf
      */
     @Overwrite
-    public void queueSectionData(final LightLayer lightType, final SectionPos pos, @Nullable final DataLayer nibble,
-                                 final boolean trustEdges) {}
+    public void setData(final LightType lightType, final SectionPos pos, final NibbleArray nibble,
+                        final boolean trustEdges) {
+    }
 
     /**
      * @reason Avoid messing with the vanilla light engine state
@@ -152,9 +155,11 @@ public abstract class LevelLightEngineMixin implements LightEventListener, StarL
      * @author Spottedleaf
      */
     @Overwrite
-    public int getRawBrightness(final BlockPos pos, final int ambientDarkness) {
+    public int getLightSubtracted(final BlockPos pos, final int ambientDarkness) {
         // need to use new light hooks for this
-        return this.lightEngine.getRawBrightness(pos, ambientDarkness);
+        final int sky = this.lightEngine.getSkyReader().getLightFor(pos) - ambientDarkness;
+        final int block = this.lightEngine.getBlockReader().getLightFor(pos);
+        return Math.max(sky, block);
     }
 
     @Unique
@@ -164,13 +169,13 @@ public abstract class LevelLightEngineMixin implements LightEventListener, StarL
     protected final Long2ObjectOpenHashMap<SWMRNibbleArray[]> skyLightMap = new Long2ObjectOpenHashMap<>();
 
     @Override
-    public void clientUpdateLight(final LightLayer lightType, final SectionPos pos,
-                                  final DataLayer nibble, final boolean trustEdges) {
-        if (((Object)this).getClass() != LevelLightEngine.class) {
+    public void clientUpdateLight(final LightType lightType, SectionPos pos, final @Nullable NibbleArray nibble,
+                                  final boolean trustEdges) {
+        if (((Object)this).getClass() != WorldLightManager.class) {
             throw new IllegalStateException("This hook is for the CLIENT ONLY");
         }
         // data storage changed with new light impl
-        final ChunkAccess chunk = this.getLightEngine().getAnyChunkNow(pos.getX(), pos.getZ());
+        final IChunk chunk = this.getLightEngine().getAnyChunkNow(pos.getX(), pos.getZ());
         switch (lightType) {
             case BLOCK: {
                 final SWMRNibbleArray[] blockNibbles = this.blockLightMap.computeIfAbsent(CoordinateUtils.getChunkKey(pos), (final long keyInMap) -> {
@@ -181,7 +186,7 @@ public abstract class LevelLightEngineMixin implements LightEventListener, StarL
 
                 if (chunk != null) {
                     ((ExtendedChunk)chunk).setBlockNibbles(blockNibbles);
-                    this.lightEngine.getLightAccess().onLightUpdate(LightLayer.BLOCK, pos);
+                    this.lightEngine.getLightAccess().markLightChanged(LightType.BLOCK, pos);
                 }
                 break;
             }
@@ -194,7 +199,7 @@ public abstract class LevelLightEngineMixin implements LightEventListener, StarL
 
                 if (chunk != null) {
                     ((ExtendedChunk)chunk).setSkyNibbles(skyNibbles);
-                    this.lightEngine.getLightAccess().onLightUpdate(LightLayer.SKY, pos);
+                    this.lightEngine.getLightAccess().markLightChanged(LightType.SKY, pos);
                 }
                 break;
             }
@@ -203,7 +208,7 @@ public abstract class LevelLightEngineMixin implements LightEventListener, StarL
 
     @Override
     public void clientRemoveLightData(final ChunkPos chunkPos) {
-        if (((Object)this).getClass() != LevelLightEngine.class) {
+        if (((Object)this).getClass() != WorldLightManager.class) {
             throw new IllegalStateException("This hook is for the CLIENT ONLY");
         }
         this.blockLightMap.remove(CoordinateUtils.getChunkKey(chunkPos));
@@ -211,8 +216,8 @@ public abstract class LevelLightEngineMixin implements LightEventListener, StarL
     }
 
     @Override
-    public void clientChunkLoad(final ChunkPos pos, final LevelChunk chunk) {
-        if (((Object)this).getClass() != LevelLightEngine.class) {
+    public void clientChunkLoad(final ChunkPos pos, final Chunk chunk) {
+        if (((Object)this).getClass() != WorldLightManager.class) {
             throw new IllegalStateException("This hook is for the CLIENT ONLY");
         }
         final long key = CoordinateUtils.getChunkKey(pos);
@@ -225,5 +230,4 @@ public abstract class LevelLightEngineMixin implements LightEventListener, StarL
             ((ExtendedChunk)chunk).setSkyNibbles(skyNibbles);
         }
     }
-
 }

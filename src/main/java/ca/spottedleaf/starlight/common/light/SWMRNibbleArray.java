@@ -1,6 +1,6 @@
 package ca.spottedleaf.starlight.common.light;
 
-import net.minecraft.world.level.chunk.DataLayer;
+import net.minecraft.world.chunk.NibbleArray;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 
@@ -39,7 +39,7 @@ public final class SWMRNibbleArray {
         WORKING_BYTES_POOL.get().addFirst(bytes);
     }
 
-    public static SWMRNibbleArray fromVanilla(final DataLayer nibble) {
+    public static SWMRNibbleArray fromVanilla(final NibbleArray nibble) {
         if (nibble == null) {
             return new SWMRNibbleArray(null, true);
         } else if (nibble.isEmpty()) {
@@ -54,7 +54,7 @@ public final class SWMRNibbleArray {
 
     protected byte[] storageUpdating;
     protected boolean updatingDirty; // only returns whether storageUpdating is dirty
-    protected volatile byte[] storageVisible;
+    protected byte[] storageVisible;
 
     public SWMRNibbleArray() {
         this(null, false); // lazy init
@@ -351,16 +351,16 @@ public final class SWMRNibbleArray {
     }
 
     // operation type: visible
-    public DataLayer toVanillaNibble() {
+    public NibbleArray toVanillaNibble() {
         synchronized (this) {
             switch (this.stateVisible) {
                 case INIT_STATE_HIDDEN:
                 case INIT_STATE_NULL:
                     return null;
                 case INIT_STATE_UNINIT:
-                    return new DataLayer();
+                    return new NibbleArray();
                 case INIT_STATE_INIT:
-                    return new DataLayer(this.storageVisible.clone());
+                    return new NibbleArray(this.storageVisible.clone());
                 default:
                     throw new IllegalStateException();
             }
@@ -395,16 +395,18 @@ public final class SWMRNibbleArray {
 
     // operation type: visible
     public int getVisible(final int index) {
-        // indices range from 0 -> 4096
-        final byte[] visibleBytes = this.storageVisible;
-        if (visibleBytes == null) {
-            return 0;
-        }
-        final byte value = visibleBytes[index >>> 1];
+        synchronized (this) {
+            // indices range from 0 -> 4096
+            final byte[] visibleBytes = this.storageVisible;
+            if (visibleBytes == null) {
+                return 0;
+            }
+            final byte value = visibleBytes[index >>> 1];
 
-        // if we are an even index, we want lower 4 bits
-        // if we are an odd index, we want upper 4 bits
-        return ((value >>> ((index & 1) << 2)) & 0xF);
+            // if we are an even index, we want lower 4 bits
+            // if we are an odd index, we want upper 4 bits
+            return ((value >>> ((index & 1) << 2)) & 0xF);
+        }
     }
 
     // operation type: updating

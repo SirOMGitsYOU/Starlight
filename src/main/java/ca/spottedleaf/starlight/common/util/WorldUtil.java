@@ -1,42 +1,43 @@
 package ca.spottedleaf.starlight.common.util;
 
-import net.minecraft.world.level.LevelHeightAccessor;
+import net.minecraft.world.World;
 
 public final class WorldUtil {
 
     // min, max are inclusive
+    // TODO update these for 1.17
 
-    public static int getMaxSection(final LevelHeightAccessor world) {
-        return world.getMaxSection() - 1; // getMaxSection() is exclusive
+    public static int getMaxSection(final World world) {
+        return 15;
     }
 
-    public static int getMinSection(final LevelHeightAccessor world) {
-        return world.getMinSection();
+    public static int getMinSection(final World world) {
+        return 0;
     }
 
-    public static int getMaxLightSection(final LevelHeightAccessor world) {
+    public static int getMaxLightSection(final World world) {
         return getMaxSection(world) + 1;
     }
 
-    public static int getMinLightSection(final LevelHeightAccessor world) {
+    public static int getMinLightSection(final World world) {
         return getMinSection(world) - 1;
     }
 
 
 
-    public static int getTotalSections(final LevelHeightAccessor world) {
+    public static int getTotalSections(final World world) {
         return getMaxSection(world) - getMinSection(world) + 1;
     }
 
-    public static int getTotalLightSections(final LevelHeightAccessor world) {
+    public static int getTotalLightSections(final World world) {
         return getMaxLightSection(world) - getMinLightSection(world) + 1;
     }
 
-    public static int getMinBlockY(final LevelHeightAccessor world) {
+    public static int getMinBlockY(final World world) {
         return getMinSection(world) << 4;
     }
 
-    public static int getMaxBlockY(final LevelHeightAccessor world) {
+    public static int getMaxBlockY(final World world) {
         return (getMaxSection(world) << 4) | 15;
     }
 
