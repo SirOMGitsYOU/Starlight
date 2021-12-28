@@ -1,16 +1,18 @@
-package ca.spottedleaf.starlight.mixin.common.world;
+package ca.spottedleaf.starlight.mixin.common.compat.create;
 
 import ca.spottedleaf.starlight.common.light.VariableBlockLightHandler;
 import ca.spottedleaf.starlight.common.world.ExtendedWorld;
-import net.minecraft.world.IWorld;
-import net.minecraft.world.World;
+import com.simibubi.create.foundation.utility.worldWrappers.WrappedWorld;
 import net.minecraft.world.chunk.Chunk;
 import net.minecraft.world.chunk.IChunk;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 
-@Mixin(World.class)
-public abstract class WorldMixin implements IWorld, AutoCloseable, ExtendedWorld {
+/**
+ * @author AeiouEnigma
+ */
+@Mixin(value = WrappedWorld.class, remap = false)
+public class WrappedWorldMixin implements ExtendedWorld {
 
     @Unique
     private VariableBlockLightHandler customBlockLightHandler;
@@ -25,4 +27,13 @@ public abstract class WorldMixin implements IWorld, AutoCloseable, ExtendedWorld
         this.customBlockLightHandler = handler;
     }
 
+    @Override
+    public final Chunk getChunkAtImmediately(final int chunkX, final int chunkZ) {
+        return null;
+    }
+
+    @Override
+    public final IChunk getAnyChunkImmediately(final int chunkX, final int chunkZ) {
+        return null;
+    }
 }
