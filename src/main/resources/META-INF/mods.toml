@@ -3,7 +3,7 @@ loaderVersion = "[${forge_version_major},)"
 license = "LGPL-3.0-only"
 
 [[mods]]
- modId = "starlight-x-create"
+ modId = "starlight"
  version = "${version}"
  displayName = "Starlight X Create"
  authors = "Spottedleaf & SirOMGitsYOU"
