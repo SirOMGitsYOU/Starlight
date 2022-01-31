@@ -13,6 +13,14 @@ buildscript {
 apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'org.spongepowered.mixin'
 
+
+repositories {
+    maven {
+        name = 'cursemaven'
+        url = 'https://cursemaven.com'
+    }
+}
+
 /*
  * Gets the version name from the latest Git tag
  */
@@ -114,6 +122,7 @@ jar {
 dependencies {
     minecraft "net.minecraftforge:forge:${mc_version}-${forge_version}"
     annotationProcessor "org.spongepowered:mixin:0.8.4:processor"
+    compileOnly fg.deobf("curse.maven:create-328085:3623348") // Create v0.4d
 }
 
 mixin {

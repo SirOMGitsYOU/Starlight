@@ -3,15 +3,15 @@ loaderVersion = "[${forge_version_major},)"
 license = "LGPL-3.0-only"
 
 [[mods]]
- modId = "starlight"
+ modId = "starlight-x-create"
  version = "${version}"
- displayName = "Starlight"
- authors = "Spottedleaf"
+ displayName = "Starlight X Create"
+ authors = "Spottedleaf & SirOMGitsYOU"
  description = '''
-    Rewrites the light engine to fix lighting performance and lighting errors
+    Rewrites the light engine to fix lighting performance and lighting errors & Added Compatibility originally by AeiouEnigma ported to 1.18 by SirOMGitsYOU 
  '''
  logoFile = "logo.png"
- displayURL = "https://www.curseforge.com/minecraft/mc-mods/starlight-forge"
+ displayURL = "https://www.curseforge.com/minecraft/mc-mods/starlight-x-create"
 
  [[dependencies.starlight]]
   modId = "forge"
